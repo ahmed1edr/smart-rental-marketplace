@@ -1,0 +1,98 @@
+services:
+  # 1. Nginx Web Server (Port 8000)
+  rental_nginx:
+    image: nginx:alpine
+    container_name: rental_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - rental_backend
+    networks:
+      - rental-network
+
+  # 2. Laravel Backend (PHP 8.3 FPM - داخلي فقط)
+  rental_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rental_backend
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/var/www/backend
+    depends_on:
+      - rental_db
+      - rental_redis
+    networks:
+      - rental-network
+
+  # 3. React Frontend - CRA (Port 3000)
+  rental_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rental_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - rental_backend
+    networks:
+      - rental-network
+
+  # 4. MySQL Database (Port 3306)
+  rental_db:
+    image: mysql:8.0
+    container_name: rental_db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: smart_rental_db
+      MYSQL_USER: rental_user
+      MYSQL_PASSWORD: secretpassword
+      MYSQL_ROOT_PASSWORD: rootsecretpassword
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - rental-network
+
+  # 5. phpMyAdmin (Port 9999)
+  rental_pma:
+    image: phpmyadmin:latest
+    container_name: rental_pma
+    restart: unless-stopped
+    ports:
+      - "9999:80"
+    environment:
+      PMA_HOST: rental_db # كيربط ديريكت مع حاوية MySQL
+    depends_on:
+      - rental_db
+    networks:
+      - rental-network
+
+  # 6. Redis Cache & Queues (Port 6379)
+  rental_redis:
+    image: redis:alpine
+    container_name: rental_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rental-network
+
+networks:
+  rental-network:
+    driver: bridge
+
+volumes:
+  db_data:
+  redis_data:

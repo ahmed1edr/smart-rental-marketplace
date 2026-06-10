@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rental-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rental-backend
+  template:
+    metadata:
+      labels:
+        app: rental-backend
+    spec:
+      containers:
+      - name: app
+        image: smart-rental-backend:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: rental-config
+        - secretRef:
+            name: rental-secret
+        # We need to start reverb in the background, but the container CMD runs nginx & php-fpm. 
+        # Actually, best practice is to run reverb in a separate container/pod, but for simplicity we can just add a separate deployment or container.
+        # Let's add a second container in the same pod for Reverb so they share the same network and codebase.
+      - name: reverb
+        image: smart-rental-backend:latest
+        imagePullPolicy: Never
+        command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: rental-config
+        - secretRef:
+            name: rental-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rental-backend-service
+spec:
+  selector:
+    app: rental-backend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 80
+    - name: reverb
+      protocol: TCP
+      port: 8080
+      targetPort: 8080

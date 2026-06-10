@@ -1,0 +1,49 @@
+FROM php:8.3-fpm
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    nginx
+
+# Clean cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install PHP extensions
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+# Install Redis
+RUN pecl install redis && docker-php-ext-enable redis
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/backend
+
+# Copy the source code
+COPY backend/ /var/www/backend/
+
+# Install Laravel dependencies
+RUN composer install --no-dev --optimize-autoloader
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/backend/storage /var/www/backend/bootstrap/cache
+RUN chmod -R 775 /var/www/backend/storage /var/www/backend/bootstrap/cache
+
+# Nginx config
+RUN rm /etc/nginx/sites-enabled/default
+COPY docker/nginx/default.conf /etc/nginx/sites-enabled/default
+
+# Replace PHP-FPM host in nginx conf from 'rental_backend:9000' to '127.0.0.1:9000'
+RUN sed -i 's/rental_backend:9000/127.0.0.1:9000/g' /etc/nginx/sites-enabled/default
+
+# Reverb port
+EXPOSE 80 8080
+
+# Entrypoint to start PHP-FPM and Nginx (and Reverb if we wanted in the same pod, but usually we run a separate container/pod for reverb, however for simplicity we can just start it here or in a separate deployment)
+CMD service nginx start && php-fpm

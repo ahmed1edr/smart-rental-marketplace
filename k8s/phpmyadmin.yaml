@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rental-pma
+spec:
+  selector:
+    matchLabels:
+      app: rental-pma
+  template:
+    metadata:
+      labels:
+        app: rental-pma
+    spec:
+      containers:
+      - name: phpmyadmin
+        image: phpmyadmin:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: PMA_HOST
+          value: "rental-db-service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rental-pma-service
+spec:
+  selector:
+    app: rental-pma
+  ports:
+    - protocol: TCP
+      port: 9999
+      targetPort: 80
